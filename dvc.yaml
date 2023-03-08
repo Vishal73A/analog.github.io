@@ -1,0 +1,207 @@
+stages:
+  download-images:
+    cmd: python scripts/download-images.py datasets/watch-faces.json --concurrent
+    deps:
+    - scripts/download-images.py
+    - datasets/watch-faces.json
+    outs:
+    - datasets/train:
+        persist: true
+    - datasets/test:
+        persist: true
+    - datasets/val:
+       persist: true
+    - datasets/watch-faces-local.json
+# TODO stage for generating detection dataset from label-studio dataset?
+  train-detector:
+    cmd: >- 
+      python watch_recognition/watch_recognition/train/object_detection_task.py 
+      --epochs ${detector.epochs} 
+      --batch-size ${detector.batch-size} 
+      --seed ${seed}
+    params:
+      - detector
+      - seed
+    deps:
+      - datasets/train
+      - datasets/test
+      - datasets/val
+      - datasets/watch-faces-local.json
+      - watch_recognition/watch_recognition/train/object_detection_task.py
+    metrics:
+      - metrics/detector.json:
+          cache: false
+    plots:
+      - metrics/detector/scalars:
+          cache: false
+      - example_predictions/detector/test-image.jpg:
+          persist: true
+    outs:
+
+      - debug/detector/:
+          persist: true
+      - models/detector/:
+          persist: true
+  eval-detector:
+    cmd: python watch_recognition/watch_recognition/eval/object_detection_eval.py
+    deps:
+      - models/detector/
+      - watch_recognition/watch_recognition/eval/object_detection_eval.py
+    metrics:
+      - metrics/detector/coco_train.json:
+          cache: false
+      - metrics/detector/coco_val.json:
+          cache: false
+    plots:
+      - metrics/detector/PR-IoU@0.50_train.tsv:
+          x: Recall
+          y: Precision
+          title: Train PR-IoU@0.50
+          cache: false
+      - metrics/detector/PR-IoU@0.75_train.tsv:
+          x: Recall
+          y: Precision
+          title: Train PR-IoU@0.75
+          cache: false
+      - metrics/detector/PR-IoU@0.95_train.tsv:
+          x: Recall
+          y: Precision
+          title: Train PR-IoU@0.95
+          cache: false
+      - metrics/detector/PR-IoU@0.50_val.tsv:
+          x: Recall
+          y: Precision
+          title: Val PR-IoU@0.50
+          cache: false
+      - metrics/detector/PR-IoU@0.75_val.tsv:
+          x: Recall
+          y: Precision
+          title: Val PR-IoU@0.75
+          cache: false
+      - metrics/detector/PR-IoU@0.95_val.tsv:
+          x: Recall
+          y: Precision
+          title: Val PR-IoU@0.95
+          cache: false
+      - example_predictions/detector/train_0.jpg
+      - example_predictions/detector/train_1.jpg
+      - example_predictions/detector/train_2.jpg
+      - example_predictions/detector/train_3.jpg
+      - example_predictions/detector/val_0.jpg
+      - example_predictions/detector/val_1.jpg
+      - example_predictions/detector/val_2.jpg
+  train-keypoint:
+    cmd: >-
+      python watch_recognition/watch_recognition/train/heatmap_regression_task.py
+      --epochs ${keypoint.epochs}
+      --batch-size ${keypoint.batch-size}
+      --confidence-threshold ${keypoint.confidence-threshold}
+      --seed ${seed}
+    params:
+      - keypoint
+      - seed
+      - max_images
+    deps:
+      - datasets/train
+      - datasets/test
+      - datasets/val
+      - datasets/watch-faces-local.json
+      - watch_recognition/watch_recognition/train/heatmap_regression_task.py
+    metrics:
+      - metrics/keypoint.json:
+          cache: false
+    plots:
+      - metrics/keypoint/scalars/:
+          cache: false
+      - example_predictions/keypoint/test-image-2.jpg:
+          persist: true
+    outs:
+      - models/keypoint/:
+          persist: true
+      - debug/keypoint/:
+          persist: true
+  eval-keypoint:
+    cmd: python watch_recognition/watch_recognition/eval/keypoint_detection_eval.py --kp-confidence-threshold ${keypoint.confidence-threshold}
+    deps:
+      - models/keypoint/
+      - models/detector/
+      - watch_recognition/watch_recognition/eval/keypoint_detection_eval.py
+    metrics:
+      - metrics/keypoint/coco_train.json:
+          cache: false
+      - metrics/keypoint/coco_val.json:
+          cache: false
+    plots:
+      - example_predictions/keypoint/train_0.jpg
+      - example_predictions/keypoint/train_1.jpg
+      - example_predictions/keypoint/train_2.jpg
+      - example_predictions/keypoint/train_3.jpg
+      - example_predictions/keypoint/train_4.jpg
+      - example_predictions/keypoint/val_0.jpg
+      - example_predictions/keypoint/val_1.jpg
+      - example_predictions/keypoint/val_2.jpg
+      - example_predictions/keypoint/val_3.jpg
+      - example_predictions/keypoint/val_4.jpg
+  train-segmentation:
+    cmd: >-
+      python watch_recognition/watch_recognition/train/segmentation_task.py
+      --epochs ${segmentation.epochs}
+      --batch-size ${segmentation.batch-size}
+      --confidence-threshold ${segmentation.confidence-threshold}
+      --seed ${seed}
+    params:
+      - segmentation
+      - seed
+    deps:
+      - datasets/train
+      - datasets/test
+      - datasets/val
+      - datasets/watch-faces-local.json
+      - watch_recognition/watch_recognition/train/segmentation_task.py
+    metrics:
+      - metrics/segmentation.json:
+          cache: false
+    plots:
+      - metrics/segmentation/scalars/:
+          cache: false
+      - example_predictions/segmentation/test-image-2.jpg:
+          persist: true
+    outs:
+      - models/segmentation/:
+          persist: true
+      - debug/segmentation/:
+          persist: true
+  eval-segmentation:
+    cmd: python watch_recognition/watch_recognition/eval/segmentation_eval.py --confidence-threshold ${segmentation.confidence-threshold}
+    deps:
+      - models/segmentation/
+      - models/detector/
+      - watch_recognition/watch_recognition/eval/segmentation_eval.py
+    plots:
+      - example_predictions/segmentation/train_0.jpg
+      - example_predictions/segmentation/train_1.jpg
+      - example_predictions/segmentation/train_2.jpg
+      - example_predictions/segmentation/train_3.jpg
+      - example_predictions/segmentation/train_4.jpg
+      - example_predictions/segmentation/val_0.jpg
+      - example_predictions/segmentation/val_1.jpg
+      - example_predictions/segmentation/val_2.jpg
+      - example_predictions/segmentation/val_3.jpg
+      - example_predictions/segmentation/val_4.jpg
+  eval-end-2-end:
+    cmd: python watch_recognition/watch_recognition/eval/end_to_end_eval.py --run-concurrently
+    deps:
+      - watch_recognition/watch_recognition/eval/end_to_end_eval.py
+      - models/detector
+      - models/keypoint
+      - models/segmentation
+      - datasets/watch-faces-local.json
+
+    metrics:
+      - metrics/end_2_end_eval.csv
+      - metrics/end_2_end_summary.json
+  update-metrics:
+      cmd: python scripts/update-metrics-table-and-graph.py
+      deps:
+        - scripts/update-metrics-table-and-graph.py
+        - metrics
